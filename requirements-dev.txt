@@ -1,0 +1,27 @@
+# Everything for local development and CI, on Python 3.12.
+# Checked together on Nov 23, 2026: all install without conflicts, and the 674 model
+# reproduces its CV results (PR-AUC 0.168, lift 1.98, recall in the top 10% 23.7%).
+# Each image's requirements.txt copies its pins from this file. Change a pin here first.
+
+# Constrained by the stack, do not bump on your own:
+#   pandas stays on 2.x: evidently 0.7.23 fails to import with pandas 3.
+#   fastapi stays below 0.151: prefect 3.9.4 requires it.
+pandas==2.3.3
+fastapi==0.150.0
+
+scikit-learn==1.9.1
+pyarrow==26.0.1
+mlflow==3.18.0
+prefect==3.9.4
+evidently==0.7.23
+uvicorn==0.54.0
+flask==3.1.3
+psycopg2-binary==2.9.13
+prometheus-fastapi-instrumentator==8.1.0
+hyperopt==0.3.0
+requests==2.34.2
+
+# Dev tools named in the syllabus
+pytest==9.2.0
+black==26.10.1
+flake8==7.5.0

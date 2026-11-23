@@ -1,0 +1,21 @@
+# Each folder's owner is asked to review any PR that touches their files.
+# The last matching line wins, so the folder lines override the catch-all.
+
+*                            @JustJay7
+
+/data/                       @MiaMakarov
+/src/olist_mlops/            @MiaMakarov
+
+/flows/training_flow.py      @tasnimrh
+/flows/serve.py              @tasnimrh
+/flows/monitoring_flow.py    @Jing-yu-Wu
+/db/                         @Jing-yu-Wu
+
+/services/api/               @shiraliyeva
+/monitoring/prometheus/      @shiraliyeva
+/scripts/make_test_model.py  @shiraliyeva
+
+/services/frontend/          @LoluPH
+/monitoring/grafana/         @LoluPH
+
+/simulator/                  @Hasan8036

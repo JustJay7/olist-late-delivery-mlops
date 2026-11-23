@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "olist-mlops"
+version = "0.1.0"
+description = "Late-delivery risk for Olist orders, trained, served and monitored end to end (INSY 684)."
+requires-python = ">=3.12,<3.13"
+# No dependencies here on purpose: versions are pinned per image in requirements files,
+# so `pip install -e .` only makes `olist_mlops` importable everywhere.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
