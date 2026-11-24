@@ -19,6 +19,8 @@ class ColumnSpec:
     integer: bool = False
     # Only distances, weights and category can be missing; the model imputes them.
     nullable: bool = False
+    # For categoricals with a closed set of values; None means any text is accepted.
+    allowed: tuple[str, ...] | None = None
 
 
 # Brazil's 27 federative units. Customers come from all of them; sellers from 22 in our data.
@@ -53,8 +55,8 @@ COLUMN_SPECS: dict[str, ColumnSpec] = {
     "max_distance_km": ColumnSpec("numeric", min=0, max=10_000, nullable=True),
     "same_state_item_share": ColumnSpec("numeric", min=0, max=1),
     # Where the order goes, where it ships from, and what it is
-    "customer_state": ColumnSpec("categorical"),
-    "any_seller_state": ColumnSpec("categorical"),
+    "customer_state": ColumnSpec("categorical", allowed=BRAZILIAN_STATES),
+    "any_seller_state": ColumnSpec("categorical", allowed=BRAZILIAN_STATES),
     "primary_product_category": ColumnSpec("categorical", nullable=True),
 }
 

@@ -5,7 +5,8 @@ import pandas as pd
 
 from olist_mlops.features import CAT_COLS, DIST_COLS, LOG_COLS, OTHER_NUM, WEIGHT_COLS
 from olist_mlops.features import make_preprocess
-from olist_mlops.schema import CATEGORICAL_COLUMNS, INPUT_COLUMNS, NULLABLE_COLUMNS
+from olist_mlops.schema import BRAZILIAN_STATES, CATEGORICAL_COLUMNS, COLUMN_SPECS
+from olist_mlops.schema import INPUT_COLUMNS, NULLABLE_COLUMNS
 
 
 def _orders(n: int = 40, seed: int = 0) -> pd.DataFrame:
@@ -62,3 +63,18 @@ def test_unseen_category_at_serving_does_not_fail():
     new = _orders(n=1, seed=1)
     new["primary_product_category"] = "a_category_never_seen_in_training"
     assert pre.transform(new).shape[0] == 1
+
+
+def test_states_are_restricted_to_brazil():
+    # validate() and the API reject an order whose state is not one of the 27 units.
+    for col in ["customer_state", "any_seller_state"]:
+        assert COLUMN_SPECS[col].allowed == BRAZILIAN_STATES
+    assert len(BRAZILIAN_STATES) == 27
+
+
+def test_purchase_month_is_dropped_by_default():
+    # Every model trains without purchase_month (decision 5), even if a caller passes it in.
+    orders = _orders()
+    orders["purchase_month"] = 5
+    pre = make_preprocess(min_frequency=1).fit(orders)
+    assert not any("purchase_month" in name for name in pre.get_feature_names_out())
