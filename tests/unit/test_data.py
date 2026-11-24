@@ -95,3 +95,6 @@ def test_real_orders_give_the_674_population():
     population, _ = build_population(load_raw("orders"))
     assert len(population) == 85_371
     assert population["order_id"].is_unique
+    # The training flow relies on this split: Jan 2017-Mar 2018 to train, Apr-Jul 2018 held out.
+    train, test = time_split(population)
+    assert (len(train), len(test)) == (64_038, 21_333)
