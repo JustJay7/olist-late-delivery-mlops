@@ -94,7 +94,35 @@ Stop everything with `docker compose down`, or `docker compose down -v` to also 
 
 ## 6. Training and experiment tracking
 
-> TODO (Tasnim): the flow's steps, the 4 candidates, the champion rule, CV results, MLflow screenshots, fairness by region and permutation importance.
+`flows/training_flow.py` turns the INSY 674 notebooks into one Prefect flow. Each step is a Prefect task, so every run is recorded in the Prefect UI and a failed step stops the flow in a visible place.
+
+1. **Ingest:** `build_orders()` builds the 85,371-order table from the committed raw Olist tables.
+2. **Validate:** every model input is checked against `schema.py` (columns, ranges, allowed states). Bad data stops the flow before any training.
+3. **Split:** orders bought before 1 Apr 2018 are the training set. Later orders are kept as serving traffic and are never trained on.
+4. **Evaluate:** the 4 candidates from 674 are scored with the same 5-fold time-series CV. Each one is logged as its own MLflow run with its parameters and the mean and standard deviation of `cv_pr_auc`, `cv_lift` and `cv_recall_top10`.
+5. **Select:** the 674 champion rule. Every model must beat the B1 baseline, and a more complex model replaces logistic regression only if it is better on at least 4 of the 5 folds and its mean gain is larger than one standard error.
+6. **Register:** the winner is refit without the last 2,000 training orders (their outcomes were not yet known on 1 Apr), logged with its `flag_threshold` (the score above which an order is in the riskiest 10%), registered as `olist-late-delivery` and given the alias `champion`. On a later run the alias only moves if the new model passes the same rule against the current champion.
+
+**Results** (5-fold time-series CV, mean over folds):
+
+| Model | PR-AUC | Lift | Recall in top 10% |
+|---|---|---|---|
+| Logistic regression (L1, C=0.157) | **0.168** | **1.98** | **23.7%** |
+| Random forest | 0.161 | 1.81 | 21.2% |
+| HistGradientBoosting | 0.157 | 1.79 | 20.7% |
+| B1 baseline (promised days and state) | 0.150 | 1.76 | 20.1% |
+
+Logistic regression is the champion. Both tree models beat it on only 1 of the 5 folds, so the rule keeps the simpler and more stable model. The numbers match INSY 674 exactly, which confirms that moving the notebooks into a pipeline changed nothing.
+
+To run it: start MLflow and Prefect (section 3), then `python flows/training_flow.py`.
+
+![MLflow: the 4 candidate runs sorted by CV PR-AUC](docs/images/mlflow_runs.png)
+
+![MLflow registry: olist-late-delivery version 1 with alias champion](docs/images/mlflow_registry.png)
+
+![Prefect: the training flow run and its 9 tasks](docs/images/prefect_flow.png)
+
+> Next in this section: the 30-trial Hyperopt sweep, recall in the top 10% for each Brazilian region (fairness) and the permutation importance plot.
 
 ## 7. Model API
 
