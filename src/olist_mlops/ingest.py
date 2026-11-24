@@ -14,6 +14,7 @@ import pandas as pd
 from olist_mlops import config
 from olist_mlops.data import build_population, load_raw
 from olist_mlops.integration import integrate_features
+from olist_mlops.schema import INPUT_COLUMNS, TARGET
 
 NAMES = {
     "orders": "olist_orders_dataset.csv",
@@ -177,3 +178,44 @@ def build_orders() -> pd.DataFrame:
     """
     population, _ = build_population(load_raw("orders"))
     return integrate_features(population, build_order_table())
+
+
+# Committed reference files (locked decision 3). Rebuild them with: python -m olist_mlops.ingest
+REFERENCE_DIR = config.ROOT / "data" / "reference"
+SAMPLE_DIR = config.ROOT / "data" / "sample"
+BASELINE_SIZE = 5_000
+SAMPLE_SIZE = 500
+
+
+def split_serving(orders: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split the Apr-Jul 2018 orders once: a drift baseline, and the orders the simulator replays.
+
+    Neither part is ever used for training. The seed is fixed so every laptop and container
+    gets the same 5,000 baseline orders and the same 16,333 replay orders.
+    """
+    serving = orders[orders["order_purchase_timestamp"] >= config.TEST_START]
+    baseline = serving.sample(n=BASELINE_SIZE, random_state=config.RANDOM_STATE).sort_index()
+    replay = serving.drop(index=baseline.index)
+    return baseline, replay
+
+
+def write_reference_files() -> None:
+    """Write the zip lookup, the serving baseline and the 500-order CI sample."""
+    keep = ["order_id", "order_purchase_timestamp", *INPUT_COLUMNS, TARGET]
+    orders = build_orders()
+    baseline, _ = split_serving(orders)
+    train = orders[orders["order_purchase_timestamp"] < config.TEST_START]
+    sample = train.sample(n=SAMPLE_SIZE, random_state=config.RANDOM_STATE).sort_index()
+    zips = zip_centroids(_read(config.RAW_DIR, "geo")).rename(
+        columns={"geolocation_zip_code_prefix": "zip_code_prefix"}
+    )
+
+    REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
+    SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
+    zips.to_parquet(REFERENCE_DIR / "zip_lookup.parquet", index=False)
+    baseline[keep].to_parquet(REFERENCE_DIR / "serving_baseline.parquet", index=False)
+    sample[keep].to_parquet(SAMPLE_DIR / "orders_sample.parquet", index=False)
+
+
+if __name__ == "__main__":
+    write_reference_files()
