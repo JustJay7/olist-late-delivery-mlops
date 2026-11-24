@@ -47,13 +47,21 @@ APPROVAL_FEATURES = [
 ]
 
 
-def integrate_features(population: pd.DataFrame, path: Path = MERGED_PATH) -> pd.DataFrame:
-    """Preserve project population/labels/split and attach approval-time features."""
+def integrate_features(
+    population: pd.DataFrame, source: Path | pd.DataFrame = MERGED_PATH
+) -> pd.DataFrame:
+    """Preserve project population/labels/split and attach approval-time features.
+
+    `source` is the order table itself (from ingest.build_order_table) or, as in 674, a CSV path.
+    """
     if not population.order_id.is_unique:
         raise ValueError("Project population has duplicate order IDs")
-    if not path.exists():
-        raise FileNotFoundError(f"Missing {path}. Run scripts/build_olist_model_table.py first.")
-    merged = pd.read_csv(path, low_memory=False)
+    if isinstance(source, pd.DataFrame):
+        merged = source
+    elif not source.exists():
+        raise FileNotFoundError(f"Missing {source}. Run scripts/build_olist_model_table.py first.")
+    else:
+        merged = pd.read_csv(source, low_memory=False)
     if not merged.order_id.is_unique:
         raise ValueError("Merged source has duplicate order IDs")
     missing = set(APPROVAL_FEATURES) - set(merged.columns)
