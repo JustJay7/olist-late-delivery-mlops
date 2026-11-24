@@ -1,0 +1,7 @@
+fastapi==0.150.0
+uvicorn==0.54.0
+pandas==2.3.3
+scikit-learn==1.9.1
+mlflow==3.18.0
+psycopg2-binary==2.9.13
+prometheus-fastapi-instrumentator==8.1.0
