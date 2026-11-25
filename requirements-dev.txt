@@ -6,7 +6,9 @@
 # Constrained by the stack, do not bump on your own:
 #   pandas stays on 2.x: evidently 0.7.23 fails to import with pandas 3.
 #   fastapi stays below 0.151: prefect 3.9.4 requires it.
+#   numpy 2.4.x: numpy 2.5 makes pandas 2.3.3 raise deprecation warnings.
 pandas==2.3.3
+numpy==2.4.6
 fastapi==0.150.0
 
 scikit-learn==1.9.1
