@@ -12,6 +12,7 @@ from olist_mlops.schema import INPUT_COLUMNS
 from services.api.model_loader import load_champion
 from services.api.schemas import OrderInput
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

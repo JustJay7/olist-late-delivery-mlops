@@ -19,8 +19,28 @@ class LoadedModel:
 def load_champion(
     current_version: str | None = None,
 ) -> LoadedModel | None:
-    mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
 
+    # Test-only override: bypass the MLflow registry.
+    override_uri = os.getenv("MODEL_URI")
+
+    if override_uri:
+        if current_version == "test":
+            return None
+
+        model = mlflow.sklearn.load_model(override_uri)
+
+        metadata = mlflow.models.Model.load(override_uri).metadata
+
+        threshold = float(metadata["flag_threshold"])
+
+        return LoadedModel(
+            model=model,
+            threshold=threshold,
+            version="test",
+        )
+
+    # Normal operation: load the registered champion.
+    mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
     client = MlflowClient()
 
     champion = client.get_model_version_by_alias(MODEL_NAME, MODEL_ALIAS)
