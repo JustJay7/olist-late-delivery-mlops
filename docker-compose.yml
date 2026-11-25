@@ -1,0 +1,76 @@
+# Local stack for the Olist late-delivery MLOps project.
+# Start: cp .env.example .env, then docker compose up --build. Stop: docker compose down.
+# This first version runs the shared infrastructure (issue #5). The api, frontend, pipeline,
+# simulator, prometheus and grafana services are added here by their owners.
+
+name: olist-mlops
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?copy .env.example to .env first}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env first}
+      POSTGRES_DB: ${POSTGRES_DB:?copy .env.example to .env first}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs once, on an empty volume, in file-name order: 00-databases.sql creates the
+      # MLflow and Prefect databases, then the app tables script (issue #4) runs after it.
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mlflow:
+    build: services/mlflow
+    # --allowed-hosts: without it MLflow 3 rejects requests addressed to "mlflow:5000",
+    # which is how the other containers reach it (checked: 403 without, 200 with).
+    # --serve-artifacts: models are uploaded through the server, so a flow running on a
+    # laptop and the API in a container read and write the same artifact store.
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000 --workers 2
+      --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow
+      --artifacts-destination /mlartifacts
+      --serve-artifacts
+      --allowed-hosts mlflow:5000,localhost:5000,localhost:5001,127.0.0.1:5000,127.0.0.1:5001
+    ports:
+      # 5001 on the laptop because macOS uses 5000 for AirPlay
+      - "5001:5000"
+    volumes:
+      - mlartifacts:/mlartifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  prefect:
+    build: services/prefect
+    command: prefect server start --host 0.0.0.0 --port 4200
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/prefect
+      # The UI runs in the browser on the laptop, so it must call the API through localhost
+      PREFECT_UI_API_URL: http://localhost:4200/api
+      PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+    ports:
+      - "4200:4200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:
+  mlartifacts:
