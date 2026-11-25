@@ -1,12 +1,34 @@
+from unittest.mock import Mock
+
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from olist_mlops.schema import INPUT_COLUMNS
 from services.api.main import app
+from services.api.model_loader import LoadedModel
 from services.api.schemas import OrderInput
 
-client = TestClient(app)
+
+@pytest.fixture
+def client(monkeypatch):
+    model = Mock()
+    model.predict_proba.return_value = np.array([[0.8, 0.2]])
+
+    loaded_model = LoadedModel(
+        model=model,
+        threshold=0.15,
+        version="1",
+    )
+
+    monkeypatch.setattr(
+        "services.api.main.load_champion",
+        lambda current_version=None: (loaded_model if current_version != "1" else None),
+    )
+
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture
@@ -37,7 +59,7 @@ def valid_order():
 # Health endpoint tests
 
 
-def test_health():
+def test_health(client):
     response = client.get("/health")
 
     assert response.status_code == 200
@@ -107,7 +129,7 @@ def test_nullable_fields(valid_order):
 # Prediction endpoint tests
 
 
-def test_predict_valid_order(valid_order):
+def test_predict_valid_order(client, valid_order):
     valid_order["order_id"] = "test-001"
 
     response = client.post("/predict", json=valid_order)
@@ -118,11 +140,12 @@ def test_predict_valid_order(valid_order):
 
     assert result["order_id"] == "test-001"
     assert 0 <= result["late_probability"] <= 1
-    assert isinstance(result["flagged"], bool)
-    assert result["model_version"] == "stub"
+    assert result["late_probability"] == pytest.approx(0.2)
+    assert result["flagged"] is True
+    assert result["model_version"] == "1"
 
 
-def test_predict_invalid_order(valid_order):
+def test_predict_invalid_order(client, valid_order):
     valid_order["purchase_hour"] = 25
 
     response = client.post("/predict", json=valid_order)
@@ -134,16 +157,36 @@ def test_predict_invalid_order(valid_order):
     ]
 
 
-def test_predict_generates_order_id(valid_order):
+def test_predict_generates_order_id(client, valid_order):
     response = client.post("/predict", json=valid_order)
 
     assert response.status_code == 200
     assert response.json()["order_id"]
 
 
-def test_predict_missing_required_field(valid_order):
+def test_predict_missing_required_field(client, valid_order):
     del valid_order["total_price"]
 
     response = client.post("/predict", json=valid_order)
 
     assert response.status_code == 422
+
+
+def test_predict_model_unavailable(client, valid_order):
+    app.state.loaded_model = None
+
+    response = client.post("/predict", json=valid_order)
+
+    assert response.status_code == 503
+
+
+# Prometheus metrics tests
+
+
+def test_metrics(client):
+    client.get("/health")
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "http_requests_total" in response.text
