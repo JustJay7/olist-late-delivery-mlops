@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% macro field(name, type="number") %}
+  <div class="{{ 'invalid' if name == error_field }}">
+    <label for="{{ name }}">{{ fields[name] }}</label>
+    <input id="{{ name }}" name="{{ name }}" type="{{ type }}" step="any" value="{{ values.get(name, '') }}">
+  </div>
+{% endmacro %}
+{% macro choice(name, options, blank=None) %}
+  <div class="{{ 'invalid' if name == error_field }}">
+    <label for="{{ name }}">{{ fields[name] }}</label>
+    <select id="{{ name }}" name="{{ name }}">
+      {% if blank %}<option value="">{{ blank }}</option>{% endif %}
+      {% for option in options %}
+        <option value="{{ option }}" {{ 'selected' if values.get(name) == option }}>{{ option }}</option>
+      {% endfor %}
+    </select>
+  </div>
+{% endmacro %}
+
+{% block content %}
+  {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/predict">
+    <fieldset>
+      <legend>Route</legend>
+      <div class="grid">
+        {{ field("customer_zip", "text") }}
+        {{ choice("customer_state", states) }}
+        {{ field("seller_zip", "text") }}
+        {{ choice("seller_state", states) }}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Item</legend>
+      <div class="grid">
+        {{ choice("category", categories, blank="Unknown") }}
+        {{ field("price") }}
+        {{ field("freight") }}
+        {{ field("weight_g") }}
+        {{ field("length_cm") }}
+        {{ field("width_cm") }}
+        {{ field("height_cm") }}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Promise</legend>
+      <div class="grid">{{ field("promised_days") }}</div>
+    </fieldset>
+    <button type="submit">Score this order</button>
+  </form>
+{% endblock %}

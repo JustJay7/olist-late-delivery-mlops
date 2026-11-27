@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+  {% if result.flagged %}
+    <p class="verdict late">Likely late: {{ risk_pct }}% risk, in the riskiest 10%</p>
+  {% else %}
+    <p class="verdict on-time">Probably on time: {{ risk_pct }}% risk, not in the riskiest 10%</p>
+  {% endif %}
+  <p>Orders in the riskiest 10% are the ones the operations team is asked to check first.</p>
+  <dl>
+    <dt>Order ID</dt><dd>{{ result.order_id }}</dd>
+    <dt>Model version</dt><dd>{{ result.model_version }}</dd>
+    <dt>Route</dt>
+    <dd>{{ order.any_seller_state }} to {{ order.customer_state }},
+      {% if order.mean_distance_km is not none %}{{ "%.0f"|format(order.mean_distance_km) }} km
+      {% else %}distance unknown (zip not in our lookup){% endif %}</dd>
+    <dt>Promised delivery</dt><dd>{{ order.promised_days_from_approval|round(1) }} days</dd>
+  </dl>
+  <p><a href="/">Score another order</a></p>
+{% endblock %}
