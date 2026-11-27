@@ -122,3 +122,13 @@ def test_bad_form_value_never_reaches_api(form, api):
     assert response.status_code == 400
     assert b"Price (R$): &#39;lots&#39; is not a number." in response.data
     assert api.calls == []
+
+
+def test_out_of_range_value_never_reaches_api(form, api):
+    form["promised_days"] = "400"
+
+    response = client.post("/predict", data=form)
+
+    assert response.status_code == 400
+    assert b"must be between 0 and 365" in response.data
+    assert api.calls == []
