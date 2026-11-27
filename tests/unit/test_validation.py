@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from olist_mlops.features import make_preprocess, single_item_order, validate
+from olist_mlops.features import BRAZIL_TZ, make_preprocess, single_item_order, validate
 from olist_mlops.ingest import SAMPLE_DIR, build_orders
 from olist_mlops.schema import INPUT_COLUMNS, TARGET
 
@@ -99,3 +99,11 @@ def test_form_order_goes_through_preprocessing(sample):
 def test_single_item_order_rejects_a_price_of_zero_or_less(price):
     with pytest.raises(ValueError, match="price"):
         single_item_order(**{**FORM, "price": price})
+
+
+def test_default_purchase_time_is_brazil_time():
+    # The model learned purchase_hour from Brazil timestamps, so "now" must be Brazil time too.
+    form = {k: v for k, v in FORM.items() if k != "purchased_at"}
+    row = single_item_order(**form).iloc[0]
+    now = datetime.now(BRAZIL_TZ)
+    assert (row.purchase_weekday, row.purchase_hour) == (now.weekday(), now.hour)

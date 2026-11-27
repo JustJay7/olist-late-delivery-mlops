@@ -7,6 +7,7 @@ stay comparable. The column groups say which transformation each column gets.
 
 from datetime import datetime
 from functools import lru_cache
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -86,6 +87,8 @@ def make_preprocess(min_frequency: int = 100, drop_month: bool = True) -> Column
 # Typical approval lag in the 2017-Mar 2018 training orders (median, in hours). The form has no
 # approval time, so a single order is scored as if it was approved after the usual delay.
 TYPICAL_APPROVAL_LAG_HOURS = 0.3
+# Olist timestamps are Brazil time; containers run on UTC, which is 3 hours ahead.
+BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
 
 
 def validate(df: pd.DataFrame) -> pd.DataFrame:
@@ -157,7 +160,7 @@ def single_item_order(
         # The freight-to-price ratio divides by price; a zero would crash the API with a 500.
         raise ValueError("Column 'total_price': price must be greater than 0")
 
-    purchased_at = purchased_at or datetime.now()
+    purchased_at = purchased_at or datetime.now(BRAZIL_TZ)
     distance = _zip_distance_km(int(customer_zip_prefix), int(seller_zip_prefix))
     row = {
         "promised_days_from_approval": promised_days,
