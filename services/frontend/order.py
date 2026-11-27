@@ -1,20 +1,21 @@
 """Turns the one-item web form into the 19 model inputs the API expects.
 
-Stand-in for features.single_item_order() (issue #8): once that merges, build_order() should
-call it instead, so the frontend and the simulator can't compute features differently.
+The features come from features.single_item_order(), the same function the simulator uses, so
+the frontend can't compute them differently. This module only reads the form and puts its
+errors back on the field the user typed.
 """
 
+import re
 from datetime import datetime
 from functools import lru_cache
-from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 
 from olist_mlops import config
-from olist_mlops.ingest import NAMES, REFERENCE_DIR, haversine_km
-
-# Olist timestamps are Brazilian local time, so the weekday and hour must be too.
-BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
+from olist_mlops.features import BRAZIL_TZ, single_item_order
+from olist_mlops.ingest import NAMES
+from olist_mlops.schema import COLUMN_SPECS
 
 # Form field name -> label shown to the user, in the order the form shows them.
 FORM_FIELDS = {
@@ -48,7 +49,7 @@ EXAMPLE_FORM = {
     "promised_days": "23",
 }
 
-# Which form field each model input comes from, so an API 422 can name what the user typed.
+# Which form field each model input comes from, so a rejected input can name what the user typed.
 COLUMN_TO_FIELD = {
     "promised_days_from_approval": "promised_days",
     "total_price": "price",
@@ -64,6 +65,9 @@ COLUMN_TO_FIELD = {
     "primary_product_category": "category",
 }
 
+# single_item_order() and validate() start every error with the column they reject.
+COLUMN_ERROR = re.compile(r"Column '(\w+)'[:\s]*(.*)")
+
 
 class FormError(ValueError):
     """A form value that can't be read, named by its form field."""
@@ -71,12 +75,6 @@ class FormError(ValueError):
     def __init__(self, field: str, message: str):
         super().__init__(f"{FORM_FIELDS[field]}: {message}")
         self.field = field
-
-
-@lru_cache(maxsize=1)
-def zip_lookup() -> dict[int, tuple[float, float]]:
-    zips = pd.read_parquet(REFERENCE_DIR / "zip_lookup.parquet")
-    return dict(zip(zips.zip_code_prefix, zip(zips.lat, zips.lon)))
 
 
 @lru_cache(maxsize=1)
@@ -105,49 +103,47 @@ def _zip(form, field: str) -> int:
     return int(raw)
 
 
-def distance_km(customer_zip: int, seller_zip: int) -> float | None:
-    """Straight-line route length; None when either zip isn't geocoded, as in training."""
-    lookup = zip_lookup()
-    if customer_zip not in lookup or seller_zip not in lookup:
+def _form_error(err: ValueError) -> FormError:
+    """Put a rejected model input back on the form field it came from."""
+    match = COLUMN_ERROR.match(str(err))
+    if not match or match.group(1) not in COLUMN_TO_FIELD:
+        raise err  # not something the user typed, so a bug: let it show
+    column, reason = match.groups()
+    if reason.startswith("has values outside"):
+        spec = COLUMN_SPECS[column]
+        reason = f"must be between {spec.min:g} and {spec.max:g}"
+    elif reason.startswith("has values that are not allowed"):
+        reason = "is not one of the allowed values"
+    return FormError(COLUMN_TO_FIELD[column], f"{reason} ({column}).")
+
+
+def _plain(value):
+    """numpy numbers and NaN can't go into JSON; the API wants Python numbers and null."""
+    if pd.isna(value):
         return None
-    (c_lat, c_lon), (s_lat, s_lon) = lookup[customer_zip], lookup[seller_zip]
-    return float(haversine_km(s_lat, s_lon, c_lat, c_lon))
+    return value.item() if isinstance(value, np.generic) else value
 
 
 def build_order(form, now: datetime | None = None) -> dict:
-    """One single-item order as the 19 model inputs. Range checks are left to the API."""
-    price = _number(form, "price")
-    if price == 0:
-        # The ratio below is undefined at 0, and the model was never trained on free items.
-        raise FormError("price", "must be more than 0.")
-    freight = _number(form, "freight")
-    weight = _number(form, "weight_g", required=False)
-    volume = _number(form, "length_cm") * _number(form, "width_cm") * _number(form, "height_cm")
-    distance = distance_km(_zip(form, "customer_zip"), _zip(form, "seller_zip"))
-    customer_state = form.get("customer_state", "")
-    seller_state = form.get("seller_state", "")
-    # The order is scored as it is approved, so purchase and approval are both "now".
-    now = (now or datetime.now(BRAZIL_TZ)).astimezone(BRAZIL_TZ)
-
-    order = {
-        "promised_days_from_approval": _number(form, "promised_days"),
-        "approval_lag_hours": 0.0,
-        "purchase_weekday": now.weekday(),
-        "purchase_hour": now.hour,
-        "item_count": 1,
-        "distinct_product_count": 1,
-        "seller_count": 1,
-        "total_price": price,
-        "total_freight": freight,
-        "freight_to_price_ratio": freight / price,
-        "mean_product_weight_g": weight,
-        "max_product_weight_g": weight,
-        "total_product_volume_cm3": volume,
-        "mean_distance_km": distance,
-        "max_distance_km": distance,
-        "same_state_item_share": 1.0 if customer_state == seller_state else 0.0,
-        "customer_state": customer_state,
-        "any_seller_state": seller_state,
-        "primary_product_category": form.get("category") or None,
-    }
-    return order
+    """One single-item order as the 19 model inputs, checked with the same rules as the API."""
+    inputs = dict(
+        customer_zip_prefix=_zip(form, "customer_zip"),
+        customer_state=form.get("customer_state", ""),
+        seller_zip_prefix=_zip(form, "seller_zip"),
+        seller_state=form.get("seller_state", ""),
+        product_category=form.get("category") or None,
+        price=_number(form, "price"),
+        freight=_number(form, "freight"),
+        weight_g=_number(form, "weight_g", required=False),
+        length_cm=_number(form, "length_cm"),
+        width_cm=_number(form, "width_cm"),
+        height_cm=_number(form, "height_cm"),
+        promised_days=_number(form, "promised_days"),
+        # Olist timestamps are Brazilian local time, so the weekday and hour must be too.
+        purchased_at=(now or datetime.now(BRAZIL_TZ)).astimezone(BRAZIL_TZ),
+    )
+    try:
+        row = single_item_order(**inputs)
+    except ValueError as err:
+        raise _form_error(err) from None
+    return {column: _plain(value) for column, value in row.iloc[0].items()}
