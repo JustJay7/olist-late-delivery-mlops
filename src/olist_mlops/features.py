@@ -153,6 +153,10 @@ def single_item_order(
     A one-item order has item count 1, one product and one seller, so totals equal the item's
     values and mean equals max. Purchase time defaults to now.
     """
+    if price <= 0:
+        # The freight-to-price ratio divides by price; a zero would crash the API with a 500.
+        raise ValueError("Column 'total_price': price must be greater than 0")
+
     purchased_at = purchased_at or datetime.now()
     distance = _zip_distance_km(int(customer_zip_prefix), int(seller_zip_prefix))
     row = {

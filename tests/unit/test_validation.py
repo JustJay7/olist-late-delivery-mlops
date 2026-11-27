@@ -93,3 +93,9 @@ def test_form_order_goes_through_preprocessing(sample):
     pre = make_preprocess(min_frequency=20).fit(sample[INPUT_COLUMNS])
     X = pre.transform(single_item_order(**FORM))
     assert X.shape[0] == 1 and not np.isnan(X).any()
+
+
+@pytest.mark.parametrize("price", [0, -5.0])
+def test_single_item_order_rejects_a_price_of_zero_or_less(price):
+    with pytest.raises(ValueError, match="price"):
+        single_item_order(**{**FORM, "price": price})
