@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Olist late-delivery risk</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem;
+           color: #1f2328; line-height: 1.5; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .lede { color: #59636e; margin-top: 0; }
+    fieldset { border: 1px solid #d1d9e0; border-radius: 6px; margin: 0 0 1rem; padding: 0.75rem 1rem; }
+    legend { font-weight: 600; padding: 0 0.25rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.75rem; }
+    label { display: block; font-size: 0.9rem; font-weight: 500; }
+    input, select { width: 100%; box-sizing: border-box; padding: 0.4rem; font: inherit;
+                    border: 1px solid #d1d9e0; border-radius: 4px; }
+    .invalid input, .invalid select { border: 2px solid #cf222e; }
+    button { font: inherit; padding: 0.5rem 1.25rem; border: 0; border-radius: 6px;
+             background: #1f6feb; color: white; cursor: pointer; }
+    .error { border-left: 4px solid #cf222e; background: #ffebe9; padding: 0.75rem 1rem;
+             border-radius: 4px; margin-bottom: 1rem; }
+    .verdict { font-size: 1.4rem; font-weight: 600; padding: 1rem; border-radius: 6px; }
+    .late { background: #ffebe9; border-left: 6px solid #cf222e; }
+    .on-time { background: #dafbe1; border-left: 6px solid #1a7f37; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+    dt { color: #59636e; }
+  </style>
+</head>
+<body>
+  <h1>Olist late-delivery risk</h1>
+  <p class="lede">Scores a one-item order at approval: how likely it is to arrive after the promised date.</p>
+  {% block content %}{% endblock %}
+</body>
+</html>
