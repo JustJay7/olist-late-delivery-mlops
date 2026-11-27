@@ -136,8 +136,30 @@ To run it: start MLflow and Prefect (section 3), then `python flows/training_flo
 
 > TODO (Jingyu): training-serving skew vs drift, Evidently's tests at our window size, the measured drift shares and the threshold.
 >
-> TODO (Hasan): the drift scenario and how to reproduce it.
->
+### The drift scenario
+
+The simulator replays a random sample of the 16,333 Apr-Jul 2018 orders that are neither in training nor in the drift baseline. Each order goes to `/predict` with its real `order_id`, and its true outcome goes to the `labels` table. A random sample rather than the first orders in time matters here: replaying only April would look like drift even without `--drift`.
+
+With `--drift`, the orders describe a holiday surge handled by a new long-haul carrier. Seven of the 19 inputs move, a share of 0.37, which is above the 0.25 `DRIFT_THRESHOLD`. The other 12 inputs and the true labels stay as they were, and every drifted value stays inside the ranges in `schema.py`, so the API accepts all of them.
+
+| Input | Change |
+| --- | --- |
+| `promised_days_from_approval` | 40% shorter: Olist promises faster delivery |
+| `approval_lag_hours` | 36 hours longer: payment approval backs up |
+| `total_freight`, `freight_to_price_ratio` | doubled, at the same prices |
+| `mean_distance_km`, `max_distance_km` | 60% longer: sellers are further away |
+| `same_state_item_share` | 0: every item ships from another state |
+
+To reproduce it, with the stack running (section 3):
+
+```bash
+docker compose run --rm simulator            # 500 normal orders, about 50 seconds
+docker compose run --rm simulator --drift    # 500 drifted orders
+docker compose run --rm simulator --help     # -n, --rate, --seed, --no-labels, --api-url
+```
+
+Pass `--seed 42` (any number) to send exactly the same orders again. The simulator also runs from a laptop with `python -m simulator.simulate`, against `http://localhost:8000` by default.
+
 > TODO (Peace): dashboard screenshots under normal traffic and after drift, the alert firing, and the retrain run in Prefect.
 
 ## 10. CI/CD

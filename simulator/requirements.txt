@@ -1,0 +1,5 @@
+# Same pins as requirements-dev.txt. No scikit-learn: the simulator only builds and posts orders.
+pandas==2.3.3
+numpy==2.4.6
+requests==2.34.2
+psycopg2-binary==2.9.13

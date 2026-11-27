@@ -71,6 +71,28 @@ services:
       timeout: 5s
       retries: 30
 
+  # Replays unseen 2018 orders to the API as live traffic and writes their true labels to
+  # Postgres. Not started by `up`; the profile keeps it out until you run it:
+  #   docker compose run --rm simulator           500 normal orders
+  #   docker compose run --rm simulator --drift   500 drifted orders (see simulator/simulate.py)
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    profiles: ["simulator"]
+    environment:
+      API_URL: ${API_URL}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # The simulator also waits for the API itself, because on the first start the API
+    # answers only after the pipeline has trained a model.
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
   mlartifacts:
